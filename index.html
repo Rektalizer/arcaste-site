@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arcaste</title>
+<meta name="description" content="A dark-fantasy roguelike: rewrite your enemies' words with a broken machine. Coming soon to PC.">
+<meta name="theme-color" content="#14110e">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Arcaste">
+<meta property="og:description" content="A dark-fantasy roguelike: rewrite your enemies' words with a broken machine. Coming soon to PC.">
+<meta property="og:image" content="og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Cormorant+SC:wght@500;600&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+/* Layout: a manuscript read downward through a fading kingdom — full-bleed paintings on the game's 3px grid, narrow columns of crisp text between them, one live line of enemy speech at the centre, two films from the game itself. Deliberately single dark look ("Ash & Ember"). */
+:root {
+  --ash: #14110e;
+  --soot: #1d1814;
+  --rule: #3a322a;
+  --bone: #e3d9c0;
+  --bone-dim: #a99f8a;
+  --ember: #d98a3d;
+  --ember-deep: #a4561f;
+  --blood: #9b4036;
+  --memory: #8b8197;
+  --px: 3px;
+  --f-mark: "IM Fell English SC", "Cormorant SC", Georgia, serif;
+  --f-head: "Cormorant SC", "Cormorant Garamond", Georgia, serif;
+  --f-line: "Cormorant Garamond", Georgia, serif;
+  --f-body: "Spectral", Georgia, "Times New Roman", serif;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+  /* a frame's corners cut in 3px steps, as on the game's plates */
+  --notch: polygon(0 6px, 3px 6px, 3px 3px, 6px 3px, 6px 0, calc(100% - 6px) 0, calc(100% - 6px) 3px, calc(100% - 3px) 3px, calc(100% - 3px) 6px, 100% 6px, 100% calc(100% - 6px), calc(100% - 3px) calc(100% - 6px), calc(100% - 3px) calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%, 6px 100%, 6px calc(100% - 3px), 3px calc(100% - 3px), 3px calc(100% - 6px), 0 calc(100% - 6px));
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--ash);
+  color: var(--bone);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img, video { display: block; max-width: 100%; }
+:focus-visible { outline: var(--px) solid var(--ember); outline-offset: 3px; }
+
+/* the 3px grid: a canvas over each painting, drawn at a third of its size */
+.pxbox { position: relative; overflow: hidden; }
+.pxbox > img { width: 100%; height: 100%; object-fit: cover; }
+.pxbox > canvas.pxc {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  pointer-events: none;
+}
+.pxbox.ready > img { visibility: hidden; }
+
+.wrap { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+.col { max-width: 640px; margin-inline: auto; }
+
+.eyebrow {
+  font-family: var(--f-head);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.22em;
+  color: var(--ember);
+  margin: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.eyebrow::before { content: ""; width: 6px; height: 6px; background: var(--ember); flex: none; }
+h2 {
+  font-family: var(--f-head);
+  font-weight: 500;
+  font-size: clamp(2rem, 4.4vw, 2.9rem);
+  line-height: 1.08;
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+p { margin: 0; }
+.lede { color: var(--bone-dim); font-size: 1.06rem; }
+
+/* language switch */
+.lang {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  z-index: 20;
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--rule);
+  clip-path: var(--notch);
+}
+.lang button {
+  font: 600 0.85rem/1 var(--f-head);
+  letter-spacing: 0.14em;
+  color: var(--bone-dim);
+  background: var(--ash);
+  border: 0;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.lang button[aria-pressed="true"] { color: var(--ash); background: var(--bone); }
+
+/* hero */
+.hero { position: relative; isolation: isolate; overflow: hidden; }
+.hero-art { aspect-ratio: 16 / 9; max-height: 92vh; width: 100%; }
+.hero-art > img { object-position: 49% 50%; }
+.hero-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(90deg, transparent 50%, rgba(20,17,14,0.6) 68%, rgba(20,17,14,0.92) 100%),
+    linear-gradient(180deg, transparent 72%, var(--ash) 100%);
+  pointer-events: none;
+}
+#embers { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; image-rendering: pixelated; image-rendering: crisp-edges; }
+.hero-text {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(38%, 540px);
+  padding-right: max(5vw, var(--gutter-r));
+  display: grid;
+  gap: 18px;
+}
+.mark {
+  font-family: var(--f-mark);
+  font-weight: 400;
+  font-size: clamp(3.4rem, 7.6vw, 7.2rem);
+  line-height: 0.9;
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: var(--bone);
+  text-shadow: 0 0 40px rgba(217, 138, 61, 0.18);
+}
+.tagline {
+  font-family: var(--f-line);
+  font-style: italic;
+  font-size: clamp(1.25rem, 2.1vw, 1.6rem);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.soon {
+  font-family: var(--f-head);
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  font-size: 0.9rem;
+  color: var(--bone-dim);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.soon::before { content: ""; width: 42px; height: var(--px); background: var(--ember); }
+
+/* lore */
+.lore {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  padding-block: clamp(56px, 9vw, 120px);
+  max-width: 1280px;
+  margin-inline: auto;
+}
+.lore .pxbox { aspect-ratio: 16/10; }
+.lore .pxbox > img { object-position: 70% 60%; }
+.lore .text { display: grid; gap: 20px; min-width: 0; }
+.lore .text p { max-width: 34em; }
+
+/* the edit */
+.edit { padding-block: clamp(40px, 7vw, 96px) clamp(56px, 9vw, 120px); }
+.section-head { display: grid; gap: 16px; margin-bottom: clamp(28px, 4vw, 44px); }
+.stage {
+  position: relative;
+  max-width: 1120px;
+  margin-inline: auto;
+  aspect-ratio: 16 / 8;
+  overflow: hidden;
+  background: var(--soot);
+  outline: var(--px) solid var(--rule);
+}
+.stage > .bg { position: absolute; inset: 0; filter: brightness(0.62) saturate(0.85); }
+.stage > .bg > img { object-position: 50% 62%; }
+.stage::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, transparent 40%, rgba(20,17,14,0.75) 100%); pointer-events: none; z-index: 1; }
+.foe { position: absolute; bottom: 4%; height: 78%; z-index: 2; transition: filter 0.6s ease; }
+.foe > img { object-fit: contain; }
+.foe.poacher { left: 13%; aspect-ratio: 390 / 520; }
+.foe.reaver { right: 12%; aspect-ratio: 326 / 520; transform: scaleX(-1); }
+.foe.reaver.marked { filter: drop-shadow(0 0 18px rgba(155, 64, 54, 0.95)) brightness(1.08); }
+.reticle {
+  position: absolute;
+  z-index: 3;
+  width: 63px; height: 63px;
+  border: var(--px) solid var(--blood);
+  left: 50%; bottom: 6%;
+  transform: translate(-50%, 0) rotate(45deg);
+  transition: left 0.7s cubic-bezier(.6,0,.2,1), bottom 0.7s cubic-bezier(.6,0,.2,1);
+  box-shadow: 0 0 22px rgba(155, 64, 54, 0.6);
+}
+.reticle::before { content: ""; position: absolute; inset: 21px; background: var(--blood); }
+.stage.edited .reticle { left: 79%; bottom: 52%; }
+
+.line-card {
+  position: relative;
+  z-index: 4;
+  max-width: 760px;
+  margin: -64px auto 0;
+  background: var(--soot);
+  box-shadow: inset 0 var(--px) 0 var(--ember-deep), inset 0 0 0 var(--px) var(--rule);
+  clip-path: var(--notch);
+  padding: 24px clamp(18px, 3vw, 32px) 24px;
+  display: grid;
+  gap: 16px;
+}
+.speaker { font: 600 0.82rem/1 var(--f-head); letter-spacing: 0.22em; color: var(--memory); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.speaker .quick { color: var(--bone-dim); letter-spacing: 0.12em; }
+.line {
+  font-family: var(--f-line);
+  font-weight: 500;
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  line-height: 1.2;
+  margin: 0;
+}
+.word { position: relative; display: inline-block; }
+.word.old { transition: color 0.4s; }
+.word.old::after {
+  content: "";
+  position: absolute;
+  left: -4%; top: 55%;
+  height: var(--px); width: 0;
+  background: var(--ember);
+  transition: width 0.45s steps(8);
+}
+.word.new {
+  color: var(--ember);
+  font-style: italic;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  transition: max-width 0.6s ease 0.35s, opacity 0.4s ease 0.35s;
+}
+.edited .word.old { color: var(--bone-dim); }
+.edited .word.old::after { width: 108%; }
+.edited .word.new { max-width: 12em; opacity: 1; }
+.consequence { color: var(--bone-dim); min-height: 3.3em; }
+.consequence strong { color: var(--bone); font-weight: 500; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn {
+  font: 600 0.95rem/1 var(--f-head);
+  letter-spacing: 0.14em;
+  padding: 14px 19px;
+  border: 0;
+  clip-path: var(--notch);
+  box-shadow: inset 0 0 0 var(--px) var(--ember-deep);
+  background: linear-gradient(180deg, rgba(217,138,61,0.18), rgba(217,138,61,0.05));
+  color: var(--bone);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+}
+.btn:hover { box-shadow: inset 0 0 0 var(--px) var(--ember); background: rgba(217,138,61,0.22); }
+.btn .cost { display: inline-flex; gap: 3px; }
+.btn .cost i { width: 9px; height: 9px; background: var(--memory); box-shadow: 0 0 6px var(--memory); }
+.btn.ghost { box-shadow: inset 0 0 0 var(--px) var(--rule); background: none; color: var(--bone-dim); }
+
+/* films */
+.film {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-block: clamp(32px, 5vw, 64px);
+  display: grid;
+  gap: clamp(20px, 3vw, 32px);
+}
+.film-head {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px clamp(24px, 4vw, 56px);
+  align-items: end;
+  max-width: 1120px;
+  width: 100%;
+  margin-inline: auto;
+}
+.film-head .titles { display: grid; gap: 12px; }
+.film-head h3 { font: 500 clamp(2rem, 4vw, 2.6rem)/1.05 var(--f-head); margin: 0; letter-spacing: 0.02em; }
+.film-head p { color: var(--bone-dim); max-width: 36em; }
+.screen {
+  position: relative;
+  background: #000;
+  padding: var(--px);
+  box-shadow: 0 0 0 var(--px) var(--rule), 0 30px 80px rgba(0,0,0,0.6);
+}
+.screen video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--soot); }
+
+/* gallery */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 9px;
+  max-width: 1280px;
+  margin-inline: auto;
+}
+.gallery figure { margin: 0; position: relative; overflow: hidden; background: var(--soot); }
+.gallery figure:nth-child(1) { grid-column: span 4; grid-row: span 2; }
+.gallery figure:nth-child(n+2) { grid-column: span 2; }
+.gallery .pxbox { height: 100%; aspect-ratio: 16/9; }
+.gallery figure:nth-child(1) .pxbox { aspect-ratio: auto; }
+.gallery .pxbox > canvas { transition: transform 1.2s ease, filter 0.6s; filter: saturate(0.8) brightness(0.9); }
+.gallery figure:hover canvas { transform: scale(1.03); filter: saturate(1) brightness(1); }
+.gallery figcaption {
+  position: absolute; left: 0; bottom: 0; right: 0; z-index: 1;
+  padding: 26px 14px 10px;
+  font: 600 0.8rem/1 var(--f-head); letter-spacing: 0.2em;
+  background: linear-gradient(transparent, rgba(20,17,14,0.85));
+}
+
+/* end */
+.end { position: relative; margin-top: clamp(64px, 9vw, 120px); }
+.end .pxbox { aspect-ratio: 21/9; }
+.end .pxbox > img { object-position: 30% 40%; }
+.end::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, var(--ash) 0%, transparent 30%, transparent 50%, rgba(20,17,14,0.7) 80%, var(--ash) 100%); pointer-events: none; }
+.end-text { position: absolute; inset: auto 0 12% 0; z-index: 2; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.end-text .mark { font-size: clamp(2.6rem, 6vw, 4.6rem); }
+.foot {
+  padding-block: 28px calc(28px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between;
+  color: var(--bone-dim); font-size: 0.85rem;
+  border-top: var(--px) solid var(--rule);
+  max-width: 1280px; margin-inline: auto;
+}
+
+@media (max-width: 860px) {
+  .hero-art { aspect-ratio: 4 / 3; }
+  .hero-art::after { background: linear-gradient(180deg, transparent 45%, var(--ash) 100%); }
+  .hero-text {
+    position: relative; top: auto; right: auto; transform: none; width: auto;
+    margin-top: -56px; padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+  }
+  .lore, .film-head { grid-template-columns: minmax(0, 1fr); }
+  .stage { aspect-ratio: 4 / 3; }
+  .line-card { margin-top: -36px; }
+  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gallery figure:nth-child(n) { grid-column: span 1; grid-row: auto; }
+  .gallery figure:nth-child(1) { grid-column: span 2; }
+  .gallery figure:nth-child(1) .pxbox { aspect-ratio: 16/9; }
+  .end .pxbox { aspect-ratio: 4/3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; transition-delay: 0s !important; }
+  #embers { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="lang" role="group" aria-label="Language">
+  <button type="button" id="lang-en" data-lang="en" aria-pressed="true">EN</button>
+  <button type="button" id="lang-ru" data-lang="ru" aria-pressed="false">RU</button>
+</div>
+
+<header class="hero">
+  <div class="hero-art pxbox">
+    <img src="img/hero.webp" alt="" fetchpriority="high">
+    <canvas id="embers" aria-hidden="true"></canvas>
+  </div>
+  <div class="hero-text">
+    <p class="eyebrow" data-i="eyebrow">A dark-fantasy roguelite</p>
+    <h1 class="mark">Arcaste</h1>
+    <p class="tagline" data-i="tagline">The Machine is broken. But a quiet hum still comes from inside, whispering that everything can be mended...</p>
+    <p class="soon" data-i="soon">Coming soon</p>
+  </div>
+</header>
+
+<main>
+  <section class="wrap">
+    <div class="lore">
+      <div class="pxbox">
+        <img src="img/tract.webp" alt="" loading="lazy" data-alt="alt_tract">
+      </div>
+      <div class="text">
+        <p class="eyebrow" data-i="lore_eyebrow">The old tract</p>
+        <h2 data-i="lore_h">No one remembers what happened here</h2>
+        <p data-i="lore_p1">The fields have gone wild. The villages stand empty. Whatever this kingdom once had, it has turned to ash.</p>
+        <p class="lede" data-i="lore_p2">You come to beside a skeleton that won't let go of a dead machine.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap edit" aria-labelledby="edit-h">
+    <div class="col section-head">
+      <p class="eyebrow" data-i="edit_eyebrow">The fight</p>
+      <h2 id="edit-h" data-i="edit_h">One word changes the fight</h2>
+      <p class="lede" data-i="edit_p">Every enemy speaks its next move as a line. Spend mana to edit a word before it happens: turn a blow aside, blunt it, set them on each other.</p>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="bg pxbox"><img src="img/field.webp" alt="" loading="lazy"></div>
+      <div class="foe poacher pxbox"><img src="img/poacher.webp" alt="" data-alt="alt_poacher" loading="lazy"></div>
+      <div class="foe reaver pxbox" id="reaver"><img src="img/reaver.webp" alt="" data-alt="alt_reaver" loading="lazy"></div>
+      <div class="reticle" aria-hidden="true"></div>
+    </div>
+
+    <div class="line-card" id="card">
+      <div class="speaker">
+        <span data-i="poacher">Poacher</span>
+        <span class="quick" data-i="quick">Quick · speaks before you</span>
+      </div>
+      <p class="line" aria-live="polite">
+        <span data-i="aims">takes aim at</span>
+        <span class="word old" data-i="you">you</span>
+        <span class="word new" data-i="reaver_acc">the Reaver</span>
+      </p>
+      <p class="consequence" id="consequence">Next turn he shoots whatever he aimed at: <strong>11 damage to you</strong>.</p>
+      <div class="controls">
+        <button type="button" class="btn" id="apply">
+          <span data-i="smoke">Smokescreen</span>
+          <span class="cost" aria-hidden="true"><i></i><i></i></span>
+        </button>
+        <button type="button" class="btn ghost" id="undo" hidden data-i="undo">Undo</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap film" aria-labelledby="craft-h">
+    <div class="film-head">
+      <div class="titles">
+        <p class="eyebrow" data-i="f2_eyebrow">A broken machine that can still create</p>
+        <h3 id="craft-h" data-i="f2_h">The Recombinator</h3>
+      </div>
+      <p data-i="f2_p">Lay into it fragments of other people's memory: what the word does, how it does it, what it costs. The machine gives back new edits for your hand.</p>
+    </div>
+    <div class="screen">
+      <video id="film-craft" data-film="craft" data-alt="alt_craft" muted loop playsinline preload="none" poster="video/craft_en_poster.webp"></video>
+    </div>
+  </section>
+
+  <section class="wrap film" aria-labelledby="remnant-h">
+    <div class="film-head">
+      <div class="titles">
+        <p class="eyebrow" data-i="f1_eyebrow">One body, many pasts</p>
+        <h3 id="remnant-h" data-i="f1_h">The Remnant</h3>
+      </div>
+      <p data-i="f1_p">Each run you wake in the same body with a different past. Occupation, tragedy and goal are pieced together from scraps of the dead. Does anyone else remember them?</p>
+    </div>
+    <div class="screen">
+      <video id="film-create" data-film="create" data-alt="alt_create" muted loop playsinline preload="none" poster="video/create_en_poster.webp"></video>
+    </div>
+  </section>
+
+  <section class="wrap" aria-labelledby="gal-h" style="padding-block: clamp(48px, 7vw, 96px) 0;">
+    <div class="col section-head">
+      <p class="eyebrow" data-i="gal_eyebrow">Act one</p>
+      <h2 id="gal-h" data-i="gal_h">What is left</h2>
+    </div>
+    <div class="gallery">
+      <figure><div class="pxbox"><img src="img/chapel.webp" alt="" loading="lazy"></div><figcaption data-i="g_chapel">The chapel</figcaption></figure>
+      <figure><div class="pxbox"><img src="img/gates.webp" alt="" loading="lazy"></div><figcaption data-i="g_gates">The Gates</figcaption></figure>
+      <figure><div class="pxbox"><img src="img/village2.webp" alt="" loading="lazy"></div><figcaption data-i="g_village">The village</figcaption></figure>
+      <figure><div class="pxbox"><img src="img/forest.webp" alt="" loading="lazy"></div><figcaption data-i="g_forest">The boundary stone</figcaption></figure>
+      <figure><div class="pxbox"><img src="img/archive.webp" alt="" loading="lazy"></div><figcaption data-i="g_archive">The Archive</figcaption></figure>
+      <figure><div class="pxbox"><img src="img/outskirts.webp" alt="" loading="lazy"></div><figcaption data-i="g_outskirts">The outskirts</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="end">
+    <div class="pxbox"><img src="img/stone.webp" alt="" loading="lazy"></div>
+    <div class="end-text wrap">
+      <p class="mark">Arcaste</p>
+      <p class="soon" data-i="soon">Coming soon</p>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="foot">
+    <span data-i="foot_l">Arcaste · in development</span>
+    <span data-i="foot_r">Single-player · PC</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var T = {
+    en: {
+      eyebrow: "A dark-fantasy roguelite",
+      tagline: "The Machine is broken. But a quiet hum still comes from inside, whispering that everything can be mended...",
+      soon: "Coming soon",
+      lore_eyebrow: "The old tract",
+      lore_h: "No one remembers what happened here",
+      lore_p1: "The fields have gone wild. The villages stand empty. Whatever this kingdom once had, it has turned to ash.",
+      lore_p2: "You come to beside a skeleton that won't let go of a dead machine.",
+      edit_eyebrow: "The fight",
+      edit_h: "One word changes the fight",
+      edit_p: "Every enemy speaks its next move as a line. Spend mana to edit a word before it happens: turn a blow aside, blunt it, set them on each other.",
+      poacher: "Poacher",
+      quick: "Quick · speaks before you",
+      aims: "takes aim at",
+      you: "you",
+      reaver_acc: "the Reaver",
+      smoke: "Smokescreen",
+      mana2: "2 mana",
+      undo: "Undo",
+      before: "Next turn he shoots whatever he aimed at: <strong>11 damage to you</strong>.",
+      after: "Next turn he puts all <strong>11 into the Reaver</strong>. Next turn you won't have to worry about it.",
+      f2_eyebrow: "A broken machine that can still create",
+      f2_h: "The Recombinator",
+      f2_p: "Lay into it fragments of other people's memory: what the word does, how it does it, what it costs. The machine gives back new edits for your hand.",
+      f1_eyebrow: "One body, many pasts",
+      f1_h: "The Remnant",
+      f1_p: "Each run you wake in the same body with a different past. Occupation, tragedy and goal are pieced together from scraps of the dead. Does anyone else remember them?",
+      gal_eyebrow: "Act one",
+      gal_h: "What is left",
+      g_chapel: "The chapel",
+      g_gates: "The Gates",
+      g_village: "The village",
+      g_forest: "The boundary stone",
+      g_archive: "The Archive",
+      g_outskirts: "The outskirts",
+      foot_l: "Arcaste · in development",
+      foot_r: "Single-player · PC",
+      alt_tract: "A skeleton slumped against a boundary stone, a dead machine in its lap",
+      alt_poacher: "The Poacher, drawing his bow",
+      alt_reaver: "The Reaver",
+      alt_craft: "In-game footage: three fragments laid into the Recombinator, an edit taken from what it offers",
+      alt_create: "In-game footage: occupation, tragedy and goal chosen at the Slab, then the new Remnant revealed"
+    },
+    ru: {
+      eyebrow: "Мрачный фэнтези-рогалик",
+      tagline: "Машина разбита. Но из неё доносится тихий гул, шепчущий о том, что всё можно исправить...",
+      soon: "Скоро",
+      lore_eyebrow: "Старый тракт",
+      lore_h: "Никто не помнит, что здесь случилось",
+      lore_p1: "Поля одичали, деревни опустели. Что бы ни было у этого королевства, оно превратилось в пепел.",
+      lore_p2: "Ты приходишь в себя рядом со скелетом, который не выпускает из рук мёртвую машину.",
+      edit_eyebrow: "Бой",
+      edit_h: "Одно слово меняет бой",
+      edit_p: "Каждый враг говорит свой следующий ход строкой. Потрать ману и поправь в ней слово, пока оно не случилось: уведи удар, ослабь его, стравь врагов между собой.",
+      poacher: "Браконьер",
+      quick: "Быстрый · говорит раньше тебя",
+      aims: "целится в",
+      you: "тебя",
+      reaver_acc: "Рубаку",
+      smoke: "Дымовая завеса",
+      mana2: "2 маны",
+      undo: "Отменить",
+      before: "На следующем ходу он стреляет в того, в кого целился: <strong>11 урона по тебе</strong>.",
+      after: "На следующем ходу он всадит <strong>все 11 в Рубаку</strong>. В следующем ходу тебе не придётся об этом беспокоиться.",
+      f2_eyebrow: "Сломанная машина, которая всё ещё может творить",
+      f2_h: "Рекомбинатор",
+      f2_p: "Вложи в неё обрывки чужой памяти: что делает слово, как оно это делает и чего стоит. Машина вернёт новые правки для твоей руки.",
+      f1_eyebrow: "Одно тело, много прошлых",
+      f1_h: "Отголосок",
+      f1_p: "Каждый забег ты просыпаешься в том же теле, но с другим прошлым. Ремесло, трагедия и цель собраны из обрывков мёртвых. Помнит ли их кто-то ещё?",
+      gal_eyebrow: "Акт первый",
+      gal_h: "Что осталось",
+      g_chapel: "Часовня",
+      g_gates: "Врата",
+      g_village: "Деревня",
+      g_forest: "Межевой камень",
+      g_archive: "Архив",
+      g_outskirts: "Окраина",
+      foot_l: "Arcaste · в разработке",
+      foot_r: "Одиночная игра · ПК",
+      alt_tract: "Скелет, привалившийся к межевому камню, с мёртвой машиной на коленях",
+      alt_poacher: "Браконьер натягивает лук",
+      alt_reaver: "Рубака",
+      alt_craft: "Запись из игры: три обрывка ложатся в Рекомбинатор, из предложенного берётся правка",
+      alt_create: "Запись из игры: у Плиты выбраны ремесло, трагедия и цель, затем появляется новый Отголосок"
+    }
+  };
+
+  var lang = "en";
+  var edited = false;
+
+  // ---- the films: 60 fps from the game, the viewer's language, played only while on screen
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function setFilm(v) {
+    var base = "video/" + v.dataset.film + "_" + lang;
+    v.setAttribute("aria-label", T[lang][v.dataset.alt] || "");
+    if (v.dataset.base === base) return;
+    v.dataset.base = base;
+    var wasOn = v.dataset.on === "1";
+    v.poster = base + "_poster.webp";
+    v.innerHTML = '<source src="' + base + '.webm" type="video/webm"><source src="' + base + '.mp4" type="video/mp4">';
+    if (wasOn) { v.load(); var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+  }
+  function watchFilms() {
+    var vids = document.querySelectorAll("video[data-film]");
+    if (reduced || !("IntersectionObserver" in window)) {
+      vids.forEach(function (v) { v.controls = true; v.preload = "metadata"; });
+      return;
+    }
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        var v = e.target;
+        if (e.isIntersecting) {
+          if (v.dataset.on !== "1") { v.dataset.on = "1"; v.load(); }
+          var p = v.play(); if (p && p.catch) p.catch(function () { v.controls = true; });
+        } else if (v.dataset.on === "1") {
+          v.pause();
+        }
+      });
+    }, { threshold: 0.25 });
+    vids.forEach(function (v) { io.observe(v); });
+  }
+  var stage = document.getElementById("stage");
+  var card = document.getElementById("card");
+  var cons = document.getElementById("consequence");
+  var applyBtn = document.getElementById("apply");
+  var undoBtn = document.getElementById("undo");
+  var reaver = document.getElementById("reaver");
+
+  function render() {
+    var d = T[lang];
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i]").forEach(function (el) {
+      var k = el.getAttribute("data-i");
+      if (d[k] != null) el.textContent = d[k];
+    });
+    document.querySelectorAll("img[data-alt]").forEach(function (el) {
+      el.alt = d[el.getAttribute("data-alt")] || "";
+    });
+    document.querySelectorAll("video[data-film]").forEach(setFilm);
+    applyBtn.setAttribute("aria-label", d.smoke + ", " + d.mana2);
+    cons.innerHTML = edited ? d.after : d.before;
+    document.querySelectorAll(".lang button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+    });
+  }
+
+  function setEdited(v) {
+    edited = v;
+    stage.classList.toggle("edited", v);
+    card.classList.toggle("edited", v);
+    reaver.classList.toggle("marked", v);
+    applyBtn.hidden = v;
+    undoBtn.hidden = !v;
+    render();
+    (v ? undoBtn : applyBtn).focus({ preventScroll: true });
+  }
+
+  applyBtn.addEventListener("click", function () { setEdited(true); });
+  undoBtn.addEventListener("click", function () { setEdited(false); });
+
+  document.querySelectorAll(".lang button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      lang = b.dataset.lang;
+      try { localStorage.setItem("arcaste-lang", lang); } catch (e) {}
+      render();
+    });
+  });
+
+  try {
+    var saved = localStorage.getItem("arcaste-lang");
+    if (saved === "en" || saved === "ru") lang = saved;
+    else if ((navigator.language || "").toLowerCase().indexOf("ru") === 0) lang = "ru";
+  } catch (e) {}
+  render();
+  watchFilms();
+
+  // ---- the 3px grid: every painting redrawn at a third of its size, scaled up without smoothing
+  var PX = 3;
+  function parsePos(v) {
+    var p = (v || "50% 50%").split(" ");
+    return [parseFloat(p[0]) / 100 || 0.5, parseFloat(p[1] || p[0]) / 100 || 0.5];
+  }
+  function drawBox(box) {
+    var img = box.querySelector(":scope > img");
+    var cv = box.querySelector(":scope > canvas.pxc");
+    if (!img || !cv || !img.complete || !img.naturalWidth) return;
+    var w = box.clientWidth, h = box.clientHeight;
+    if (!w || !h) return;
+    var px = box.closest(".gallery") ? 2 : PX;   // the gallery a step finer (client 2026-11-15)
+    var cw = Math.max(1, Math.round(w / px)), ch = Math.max(1, Math.round(h / px));
+    cv.width = cw; cv.height = ch;
+    var ctx = cv.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    var cs = getComputedStyle(img);
+    var iw = img.naturalWidth, ih = img.naturalHeight;
+    var s = cs.objectFit === "contain" ? Math.min(cw / iw, ch / ih) : Math.max(cw / iw, ch / ih);
+    var dw = iw * s, dh = ih * s;
+    var pos = parsePos(cs.objectPosition);
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, (cw - dw) * pos[0], (ch - dh) * pos[1], dw, dh);
+    box.classList.add("ready");
+  }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".pxbox"));
+  boxes.forEach(function (box) {
+    var img = box.querySelector(":scope > img");
+    var cv = document.createElement("canvas");
+    cv.className = "pxc";
+    cv.setAttribute("aria-hidden", "true");
+    img.after(cv);
+    if (img.complete) drawBox(box); else img.addEventListener("load", function () { drawBox(box); });
+  });
+  if ("ResizeObserver" in window) {
+    var ro = new ResizeObserver(function (entries) { entries.forEach(function (e) { drawBox(e.target); }); });
+    boxes.forEach(function (b) { ro.observe(b); });
+  } else {
+    window.addEventListener("resize", function () { boxes.forEach(drawBox); });
+  }
+
+  // ---- embers rising from the machine's core, on the same 3px grid
+  var cv = document.getElementById("embers");
+  var heroImg = document.querySelector(".hero-art > img");
+  if (!cv || !cv.getContext || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var ctx = cv.getContext("2d");
+  var W = 0, H = 0;
+  var core = { x: 0, y: 0, w: 0 };
+  var CORE_U = 0.49, CORE_V = 0.63;   // the core, in the painting's own coordinates
+  var parts = [];
+  function size() {
+    var r = cv.getBoundingClientRect();
+    W = Math.max(1, Math.round(r.width / PX)); H = Math.max(1, Math.round(r.height / PX));
+    cv.width = W; cv.height = H;
+    var iw = 1920, ih = 1080;
+    var s = Math.max(W / iw, H / ih);
+    var dw = iw * s, dh = ih * s;
+    var pos = parsePos(getComputedStyle(heroImg).objectPosition);
+    core.x = (W - dw) * pos[0] + CORE_U * dw;
+    core.y = (H - dh) * pos[1] + CORE_V * dh;
+    core.w = dw;
+  }
+  function spawn(p) {
+    p = p || {};
+    var spread = core.w * 0.1;
+    p.x = core.x + (Math.random() - 0.5) * 2 * spread;
+    p.y = core.y + (Math.random() - 0.3) * spread * 0.9;
+    p.vx = (Math.random() - 0.5) * 0.09;
+    p.vy = -(0.08 + Math.random() * 0.2);
+    p.big = Math.random() < 0.25;
+    p.life = 0;
+    p.max = 220 + Math.random() * 260;
+    p.seed = Math.random() * 6.28;
+    return p;
+  }
+  size();
+  for (var i = 0; i < 60; i++) { var p = spawn(); p.life = Math.random() * p.max; parts.push(p); }
+  window.addEventListener("resize", size);
+  var visible = true;
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible) requestAnimationFrame(tick); }).observe(cv);
+  }
+  function tick() {
+    if (!visible) return;
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      p.life++;
+      p.x += p.vx + Math.sin((p.life + p.seed * 40) / 38) * 0.06;
+      p.y += p.vy;
+      var t = p.life / p.max;
+      if (t >= 1 || p.y < 0) { spawn(p); continue; }
+      var a = Math.sin(Math.PI * t) * (0.55 + 0.45 * Math.sin(p.life / 6 + p.seed));
+      var x = Math.round(p.x), y = Math.round(p.y);
+      ctx.fillStyle = "rgba(255,196,118," + a.toFixed(3) + ")";
+      ctx.fillRect(x, y, 1, 1);
+      if (p.big) {
+        ctx.fillStyle = "rgba(217,110,40," + (a * 0.55).toFixed(3) + ")";
+        ctx.fillRect(x - 1, y, 1, 1); ctx.fillRect(x + 1, y, 1, 1);
+        ctx.fillRect(x, y - 1, 1, 1); ctx.fillRect(x, y + 1, 1, 1);
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+
+</body>
+</html>
