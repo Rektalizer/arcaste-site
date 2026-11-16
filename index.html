@@ -361,6 +361,7 @@ body.lb-open { overflow: hidden; }
 .end::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, var(--ash) 0%, transparent 30%, transparent 50%, rgba(20,17,14,0.7) 80%, var(--ash) 100%); pointer-events: none; }
 .end-text { position: absolute; inset: auto 0 12% 0; z-index: 2; text-align: center; display: grid; gap: 10px; justify-items: center; }
 .end-text .mark { font-size: clamp(2.6rem, 6vw, 4.6rem); }
+.foot > [data-i="foot_c"] { flex-basis: 100%; opacity: 0.75; }
 .foot {
   padding-block: 28px calc(28px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between;
@@ -523,6 +524,7 @@ body.lb-open { overflow: hidden; }
   <div class="foot">
     <span data-i="foot_l">Arcaste · in development</span>
     <span data-i="foot_r">Single-player · PC</span>
+    <span data-i="foot_c">© 2026 Arcaste. All rights reserved.</span>
   </div>
 </footer>
 
@@ -572,6 +574,7 @@ body.lb-open { overflow: hidden; }
       g_outskirts: "The outskirts",
       foot_l: "Arcaste · in development",
       foot_r: "Single-player · PC",
+      foot_c: "© 2026 Arcaste. All rights reserved.",
       alt_tract: "A skeleton slumped against a boundary stone, a dead machine in its lap",
       alt_poacher: "The Poacher, drawing his bow",
       alt_reaver: "The Reaver",
@@ -615,6 +618,7 @@ body.lb-open { overflow: hidden; }
       g_outskirts: "Окраина",
       foot_l: "Arcaste · в разработке",
       foot_r: "Одиночная игра · ПК",
+      foot_c: "© 2026 Arcaste. Все права защищены.",
       alt_tract: "Скелет, привалившийся к межевому камню, с мёртвой машиной на коленях",
       alt_poacher: "Браконьер натягивает лук",
       alt_reaver: "Рубака",
