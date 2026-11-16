@@ -214,7 +214,7 @@ p { margin: 0; }
   box-shadow: 0 0 22px rgba(155, 64, 54, 0.6);
 }
 .reticle::before { content: ""; position: absolute; inset: 21px; background: var(--blood); }
-.stage.edited .reticle { left: 79%; bottom: 52%; }
+.stage.edited .reticle { left: var(--rx, 79%); bottom: var(--ry, 52%); }
 
 .line-card {
   position: relative;
@@ -280,6 +280,7 @@ p { margin: 0; }
 .btn:hover { box-shadow: inset 0 0 0 var(--px) var(--ember); background: rgba(217,138,61,0.22); }
 .btn .cost { display: inline-flex; gap: 3px; }
 .btn .cost i { width: 9px; height: 9px; background: var(--memory); box-shadow: 0 0 6px var(--memory); }
+.btn[hidden] { display: none; }
 .btn.ghost { box-shadow: inset 0 0 0 var(--px) var(--rule); background: none; color: var(--bone-dim); }
 
 /* films */
@@ -318,19 +319,40 @@ p { margin: 0; }
   max-width: 1280px;
   margin-inline: auto;
 }
-.gallery figure { margin: 0; position: relative; overflow: hidden; background: var(--soot); }
+.gallery figure { margin: 0; position: relative; overflow: hidden; background: var(--soot); cursor: zoom-in; }
 .gallery figure:nth-child(1) { grid-column: span 4; grid-row: span 2; }
 .gallery figure:nth-child(n+2) { grid-column: span 2; }
 .gallery .pxbox { height: 100%; aspect-ratio: 16/9; }
 .gallery figure:nth-child(1) .pxbox { aspect-ratio: auto; }
 .gallery .pxbox > canvas { transition: transform 1.2s ease, filter 0.6s; filter: saturate(0.8) brightness(0.9); }
-.gallery figure:hover canvas { transform: scale(1.03); filter: saturate(1) brightness(1); }
+@media (hover: hover) { .gallery figure:hover canvas { transform: scale(1.03); filter: saturate(1) brightness(1); } }
 .gallery figcaption {
   position: absolute; left: 0; bottom: 0; right: 0; z-index: 1;
   padding: 26px 14px 10px;
   font: 600 0.8rem/1 var(--f-head); letter-spacing: 0.2em;
   background: linear-gradient(transparent, rgba(20,17,14,0.85));
 }
+
+
+/* the picture full size */
+.lightbox {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(10, 8, 6, 0.94);
+  display: grid; grid-template-rows: 1fr auto; place-items: center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) var(--gutter-r) max(12px, env(safe-area-inset-bottom, 0px)) var(--gutter-l);
+  cursor: zoom-out;
+}
+.lightbox[hidden] { display: none; }
+.lightbox .lb-pic { position: relative; width: min(100%, calc((100vh - 120px) * 16 / 9)); aspect-ratio: 16 / 9; }
+.lightbox .lb-pic > img { width: 100%; height: 100%; object-fit: cover; }
+.lightbox .lb-cap { font: 600 0.85rem/1 var(--f-head); letter-spacing: 0.2em; color: var(--bone); padding: 14px 0 4px; display: flex; gap: 18px; align-items: center; }
+.lightbox button {
+  font: 600 1.1rem/1 var(--f-head); color: var(--bone); background: var(--soot);
+  border: 0; box-shadow: inset 0 0 0 var(--px) var(--rule); clip-path: var(--notch);
+  width: 44px; height: 44px; cursor: pointer;
+}
+.lightbox .lb-close { z-index: 1; position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: var(--gutter-r); }
+body.lb-open { overflow: hidden; }
 
 /* end */
 .end { position: relative; margin-top: clamp(64px, 9vw, 120px); }
@@ -356,7 +378,14 @@ p { margin: 0; }
   }
   .lore, .film-head { grid-template-columns: minmax(0, 1fr); }
   .stage { aspect-ratio: 4 / 3; }
-  .line-card { margin-top: -36px; }
+  .foe { height: 64%; bottom: 5%; }
+  .foe.poacher { left: 2%; }
+  .foe.reaver { right: 4%; }
+  .reticle { width: 44px; height: 44px; }
+  .reticle::before { inset: 14px; }
+  .line-card { margin: 0 calc(-1 * var(--px)); max-width: none; clip-path: none; padding: 20px 18px; gap: 14px; }
+  .line { font-size: 1.6rem; }
+  .btn { font-size: 0.85rem; letter-spacing: 0.08em; padding: 13px 14px; }
   .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gallery figure:nth-child(n) { grid-column: span 1; grid-row: auto; }
   .gallery figure:nth-child(1) { grid-column: span 2; }
@@ -370,6 +399,7 @@ p { margin: 0; }
 </style>
 </head>
 <body>
+
 
 <div class="lang" role="group" aria-label="Language">
   <button type="button" id="lang-en" data-lang="en" aria-pressed="true">EN</button>
@@ -495,6 +525,12 @@ p { margin: 0; }
     <span data-i="foot_r">Single-player · PC</span>
   </div>
 </footer>
+
+<div class="lightbox" id="lb" hidden role="dialog" aria-modal="true">
+  <button type="button" class="lb-close" aria-label="Close">✕</button>
+  <div class="lb-pic pxbox"><img alt=""></div>
+  <div class="lb-cap"><button type="button" class="lb-prev" aria-label="Previous">‹</button><span></span><button type="button" class="lb-next" aria-label="Next">›</button></div>
+</div>
 
 <script>
 (function () {
@@ -657,6 +693,70 @@ p { margin: 0; }
     (v ? undoBtn : applyBtn).focus({ preventScroll: true });
   }
 
+  // the reticle flies to the Reaver's chest, measured, whatever the screen
+  var reticle = stage.querySelector(".reticle");
+  function aim() {
+    var s = stage.getBoundingClientRect(), r = reaver.getBoundingClientRect();
+    if (!s.width || !s.height) return;
+    var cx = r.left + r.width * 0.54 - s.left;   // the sprite is mirrored: its chest sits right of centre
+    var cy = r.top + r.height * 0.32 - s.top;
+    stage.style.setProperty("--rx", (cx / s.width * 100).toFixed(2) + "%");
+    stage.style.setProperty("--ry", ((s.height - cy - reticle.offsetHeight / 2) / s.height * 100).toFixed(2) + "%");
+  }
+  aim();
+  window.addEventListener("resize", aim);
+
+  // the gallery: a tap opens the picture full size; arrows, swipe, Esc
+  var lb = document.getElementById("lb");
+  var lbImg = lb.querySelector(".lb-pic > img");
+  var lbCap = lb.querySelector(".lb-cap > span");
+  var figs = Array.prototype.slice.call(document.querySelectorAll(".gallery figure"));
+  var lbAt = 0, lbFrom = null;
+  function lbShow(i) {
+    lbAt = (i + figs.length) % figs.length;
+    var src = figs[lbAt].querySelector("img");
+    lbImg.src = src.getAttribute("src");
+    lbImg.alt = figs[lbAt].querySelector("figcaption").textContent;
+    lbCap.textContent = lbImg.alt;
+  }
+  function lbOpen(i) {
+    lbFrom = document.activeElement;
+    lbShow(i);
+    lb.hidden = false;
+    document.body.classList.add("lb-open");
+    lb.querySelector(".lb-close").focus({ preventScroll: true });
+  }
+  function lbClose() {
+    lb.hidden = true;
+    document.body.classList.remove("lb-open");
+    if (lbFrom && lbFrom.focus) lbFrom.focus({ preventScroll: true });
+  }
+  figs.forEach(function (f, i) {
+    f.tabIndex = 0;
+    f.setAttribute("role", "button");
+    f.addEventListener("click", function () { lbOpen(i); });
+    f.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); lbOpen(i); } });
+  });
+  lb.addEventListener("click", function (e) {
+    if (e.target.closest(".lb-prev")) lbShow(lbAt - 1);
+    else if (e.target.closest(".lb-next")) lbShow(lbAt + 1);
+    else lbClose();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (lb.hidden) return;
+    if (e.key === "Escape") lbClose();
+    else if (e.key === "ArrowLeft") lbShow(lbAt - 1);
+    else if (e.key === "ArrowRight") lbShow(lbAt + 1);
+  });
+  var touchX = null;
+  lb.addEventListener("touchstart", function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  lb.addEventListener("touchend", function (e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (Math.abs(dx) > 50) { e.preventDefault(); lbShow(lbAt + (dx < 0 ? 1 : -1)); }
+  });
+
   applyBtn.addEventListener("click", function () { setEdited(true); });
   undoBtn.addEventListener("click", function () { setEdited(false); });
 
@@ -678,6 +778,7 @@ p { margin: 0; }
 
   // ---- the 3px grid: every painting redrawn at a third of its size, scaled up without smoothing
   var PX = 3;
+  function pxNow(base) { return Math.max(1, base * Math.min(1, window.innerWidth / 1280)); }
   function parsePos(v) {
     var p = (v || "50% 50%").split(" ");
     return [parseFloat(p[0]) / 100 || 0.5, parseFloat(p[1] || p[0]) / 100 || 0.5];
@@ -688,7 +789,7 @@ p { margin: 0; }
     if (!img || !cv || !img.complete || !img.naturalWidth) return;
     var w = box.clientWidth, h = box.clientHeight;
     if (!w || !h) return;
-    var px = box.closest(".gallery") ? 2 : PX;   // the gallery a step finer (client 2026-11-15)
+    var px = pxNow(box.closest(".gallery") ? 2 : PX);   // the gallery a step finer (client 2026-11-15)
     var cw = Math.max(1, Math.round(w / px)), ch = Math.max(1, Math.round(h / px));
     cv.width = cw; cv.height = ch;
     var ctx = cv.getContext("2d");
@@ -710,7 +811,8 @@ p { margin: 0; }
     cv.className = "pxc";
     cv.setAttribute("aria-hidden", "true");
     img.after(cv);
-    if (img.complete) drawBox(box); else img.addEventListener("load", function () { drawBox(box); });
+    if (img.complete) drawBox(box);
+    img.addEventListener("load", function () { drawBox(box); });   // the lightbox swaps its picture
   });
   if ("ResizeObserver" in window) {
     var ro = new ResizeObserver(function (entries) { entries.forEach(function (e) { drawBox(e.target); }); });
@@ -730,7 +832,8 @@ p { margin: 0; }
   var parts = [];
   function size() {
     var r = cv.getBoundingClientRect();
-    W = Math.max(1, Math.round(r.width / PX)); H = Math.max(1, Math.round(r.height / PX));
+    var px = pxNow(PX);
+    W = Math.max(1, Math.round(r.width / px)); H = Math.max(1, Math.round(r.height / px));
     cv.width = W; cv.height = H;
     var iw = 1920, ih = 1080;
     var s = Math.max(W / iw, H / ih);
